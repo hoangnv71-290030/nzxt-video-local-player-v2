@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NZXT Video Local Player</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        /* Configuration Browser Styles */
+        .config-container {
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 10px;
+            margin-top: 50px;
+        }
+
+        .config-title {
+            color: #00ff88;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .file-input-container {
+            margin-bottom: 20px;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 10px;
+            background: #2a2a3e;
+            border: 2px solid #00ff88;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: #00ff88;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #00cc6a;
+            transform: translateY(-2px);
+        }
+
+        /* Kraken Browser Styles - Full screen video */
+        .kraken-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .video-player {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #00ff88;
+        }
+
+        .no-video-message {
+            text-align: center;
+            color: #666;
+            font-size: 18px;
+        }
+
+        /* Responsive for different Kraken screen sizes */
+        @media (max-width: 640px) {
+            .video-player {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #333;
+            border-top: 4px solid #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        class NZXTVideoPlayer {
+            constructor() {
+                this.isKraken = false;
+                this.deviceWidth = 640;
+                this.deviceHeight = 640;
+                this.deviceShape = 'circle';
+                this.targetFps = 30;
+                this.currentVideoUrl = null;
+                
+                this.init();
+            }
+
+            init() {
+                // Check if we're in Kraken Browser or Configuration Browser
+                const searchParams = new URLSearchParams(window.location.search);
+                this.isKraken = searchParams.get("kraken") === "1";
+                
+                // Get device parameters from NZXT CAM
+                if (window.nzxt && window.nzxt.v1) {
+                    this.deviceWidth = window.nzxt.v1.width || 640;
+                    this.deviceHeight = window.nzxt.v1.height || 640;
+                    this.deviceShape = window.nzxt.v1.shape || 'circle';
+                    this.targetFps = window.nzxt.v1.targetFps || 30;
+                }
+
+                // Setup monitoring data listener
+                if (window.nzxt && window.nzxt.v1 && this.isKraken) {
+                    window.nzxt.v1.onMonitoringDataUpdate = (data) => {
+                        this.updateMonitoringDisplay(data);
+                    };
+                }
+
+                this.setupUI();
+                this.setupStorageListener();
+                this.loadSavedVideo();
+            }
+
+            setupUI() {
+                const app = document.getElementById('app');
+                
+                if (this.isKraken) {
+                    // Kraken Browser - Display video
+                    app.innerHTML = this.getKrakenHTML();
+                } else {
+                    // Configuration Browser - File selection
+                    app.innerHTML = this.getConfigHTML();
+                    this.setupConfigListeners();
+                }
+            }
+
+            getConfigHTML() {
+                return `
+                    <div class="config-container">
+                        <h1 class="config-title">NZXT Video Local Player</h1>
+                        <div class="file-input-container">
+                            <input type="file" id="videoFile" class="file-input" accept="video/*" />
+                        </div>
+                        <div class="controls">
+                            <button id="playBtn" class="btn">Play Video</button>
+                            <button id="clearBtn" class="btn">Clear Video</button>
+                        </div>
+                        <div id="status" style="text-align: center; margin-top: 20px; color: #666;"></div>
+                    </div>
+                `;
+            }
+
+            getKrakenHTML() {
+                return `
+                    <div class="kraken-container">
+                        <div id="videoContainer">
+                            ${this.currentVideoUrl ? 
+                                `<video id="krakenVideo" class="video-player" controls autoplay loop muted>
+                                    <source src="${this.currentVideoUrl}" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                                <div class="video-overlay">
+                                    Resolution: ${this.deviceWidth}x${this.deviceHeight} | Shape: ${this.deviceShape}
+                                </div>` :
+                                `<div class="no-video-message">
+                                    <div class="loading">
+                                        <div class="spinner"></div>
+                                        <p>Waiting for video selection...</p>
+                                    </div>
+                                </div>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+
+            setupConfigListeners() {
+                const fileInput = document.getElementById('videoFile');
+                const playBtn = document.getElementById('playBtn');
+                const clearBtn = document.getElementById('clearBtn');
+                const status = document.getElementById('status');
+
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const url = URL.createObjectURL(file);
+                        status.textContent = `Selected: ${file.name}`;
+                        
+                        // Save to localStorage for Kraken Browser
+                        localStorage.setItem('nzxt-video-url', url);
+                        localStorage.setItem('nzxt-video-name', file.name);
+                    }
+                });
+
+                playBtn.addEventListener('click', () => {
+                    const videoUrl = localStorage.getItem('nzxt-video-url');
+                    if (videoUrl) {
+                        localStorage.setItem('nzxt-video-action', 'play');
+                        status.textContent = 'Video sent to Kraken display!';
+                    } else {
+                        status.textContent = 'Please select a video file first.';
+                    }
+                });
+
+                clearBtn.addEventListener('click', () => {
+                    localStorage.removeItem('nzxt-video-url');
+                    localStorage.removeItem('nzxt-video-name');
+                    localStorage.setItem('nzxt-video-action', 'clear');
+                    status.textContent = 'Video cleared from Kraken display.';
+                    fileInput.value = '';
+                });
+            }
+
+            setupStorageListener() {
+                if (this.isKraken) {
+                    // Listen for changes from Configuration Browser
+                    window.addEventListener('storage', (event) => {
+                        if (event.key === 'nzxt-video-url' || event.key === 'nzxt-video-action') {
+                            this.handleVideoUpdate();
+                        }
+                    });
+                }
+            }
+
+            loadSavedVideo() {
+                if (this.isKraken) {
+                    this.currentVideoUrl = localStorage.getItem('nzxt-video-url');
+                    this.setupUI(); // Refresh UI with current video
+                }
+            }
+
+            handleVideoUpdate() {
+                const action = localStorage.getItem('nzxt-video-action');
+                const videoUrl = localStorage.getItem('nzxt-video-url');
+
+                if (action === 'clear') {
+                    this.currentVideoUrl = null;
+                    localStorage.removeItem('nzxt-video-action');
+                } else if (videoUrl) {
+                    this.currentVideoUrl = videoUrl;
+                    localStorage.removeItem('nzxt-video-action');
+                }
+
+                this.setupUI(); // Refresh Kraken display
+            }
+
+            updateMonitoringDisplay(data) {
+                // You can use monitoring data to show system info overlay
+                const overlay = document.querySelector('.video-overlay');
+                if (overlay && data) {
+                    const cpu = data.cpus && data.cpus[0] ? Math.round(data.cpus[0].load) : 'N/A';
+                    const gpu = data.gpus && data.gpus[0] ? Math.round(data.gpus[0].load) : 'N/A';
+                    const ram = data.ram ? Math.round(data.ram.load) : 'N/A';
+                    
+                    overlay.innerHTML = `
+                        Resolution: ${this.deviceWidth}x${this.deviceHeight} | Shape: ${this.deviceShape}<br>
+                        CPU: ${cpu}% | GPU: ${gpu}% | RAM: ${ram}%
+                    `;
+                }
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new NZXTVideoPlayer();
+        });
+    </script>
+</body>
+</html>
