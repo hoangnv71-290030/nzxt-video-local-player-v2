@@ -89,15 +89,9 @@
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
 
+        /* Video overlay styles - không sử dụng */
         .video-overlay {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            color: #00ff88;
+            display: none;
         }
 
         .no-video-message {
@@ -169,12 +163,7 @@
                     this.targetFps = window.nzxt.v1.targetFps || 30;
                 }
 
-                // Setup monitoring data listener
-                if (window.nzxt && window.nzxt.v1 && this.isKraken) {
-                    window.nzxt.v1.onMonitoringDataUpdate = (data) => {
-                        this.updateMonitoringDisplay(data);
-                    };
-                }
+                // Monitoring data không cần thiết cho video player
 
                 this.setupUI();
                 this.setupStorageListener();
@@ -218,10 +207,7 @@
                                 `<video id="krakenVideo" class="video-player" controls autoplay loop muted>
                                     <source src="${this.currentVideoUrl}" type="video/mp4">
                                     Your browser does not support the video tag.
-                                </video>
-                                <div class="video-overlay">
-                                    Resolution: ${this.deviceWidth}x${this.deviceHeight} | Shape: ${this.deviceShape}
-                                </div>` :
+                                </video>` :
                                 `<div class="no-video-message">
                                     <div class="loading">
                                         <div class="spinner"></div>
@@ -304,20 +290,7 @@
                 this.setupUI(); // Refresh Kraken display
             }
 
-            updateMonitoringDisplay(data) {
-                // You can use monitoring data to show system info overlay
-                const overlay = document.querySelector('.video-overlay');
-                if (overlay && data) {
-                    const cpu = data.cpus && data.cpus[0] ? Math.round(data.cpus[0].load) : 'N/A';
-                    const gpu = data.gpus && data.gpus[0] ? Math.round(data.gpus[0].load) : 'N/A';
-                    const ram = data.ram ? Math.round(data.ram.load) : 'N/A';
-                    
-                    overlay.innerHTML = `
-                        Resolution: ${this.deviceWidth}x${this.deviceHeight} | Shape: ${this.deviceShape}<br>
-                        CPU: ${cpu}% | GPU: ${gpu}% | RAM: ${ram}%
-                    `;
-                }
-            }
+            // Monitoring display đã được loại bỏ - chỉ cần video thuần túy
         }
 
         // Initialize the application
