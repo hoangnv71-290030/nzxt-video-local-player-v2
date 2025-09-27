@@ -39,55 +39,6 @@
             margin-bottom: 20px;
         }
 
-        .scale-select {
-            width: 100%;
-            padding: 10px;
-            background: #2a2a3e;
-            border: 2px solid #00ff88;
-            border-radius: 5px;
-            color: #fff;
-            font-size: 16px;
-            margin-bottom: 20px;
-        }
-
-        .setting-group {
-            margin-bottom: 20px;
-        }
-
-        /* Preview video styles */
-        .preview-container {
-            margin: 20px 0;
-            text-align: center;
-        }
-
-        .preview-video {
-            max-width: 100%;
-            max-height: 300px;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
-            background: #2a2a3e;
-            display: none;
-        }
-
-        .preview-placeholder {
-            width: 100%;
-            height: 200px;
-            background: linear-gradient(45deg, #2a2a3e, #1a1a2e);
-            border: 2px dashed #00ff88;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #666;
-            font-size: 16px;
-        }
-
-        .preview-info {
-            margin-top: 10px;
-            font-size: 12px;
-            color: #00ff88;
-        }
-
         .file-input {
             width: 100%;
             padding: 10px;
@@ -195,7 +146,6 @@
                 this.deviceShape = 'circle';
                 this.targetFps = 30;
                 this.currentVideoUrl = null;
-                this.scaleMode = 'fit'; // Default scale mode
                 
                 this.init();
             }
@@ -218,7 +168,6 @@
                 this.setupUI();
                 this.setupStorageListener();
                 this.loadSavedVideo();
-                this.loadSavedSettings();
             }
 
             setupUI() {
@@ -241,29 +190,8 @@
                         <div class="file-input-container">
                             <input type="file" id="videoFile" class="file-input" accept="video/*" />
                         </div>
-                        
-                        <!-- Preview Section -->
-                        <div class="preview-container">
-                            <div id="previewPlaceholder" class="preview-placeholder">
-                                📹 Video preview will appear here
-                            </div>
-                            <video id="previewVideo" class="preview-video" controls muted>
-                                Your browser does not support the video tag.
-                            </video>
-                            <div id="previewInfo" class="preview-info"></div>
-                        </div>
-                        
-                        <div class="setting-group">
-                            <label for="scaleMode" style="display: block; margin-bottom: 10px; color: #00ff88; font-weight: bold;">Video Scale Mode:</label>
-                            <select id="scaleMode" class="scale-select">
-                                <option value="fit">Fit to Screen (Default)</option>
-                                <option value="fill">Fill Screen (Crop if needed)</option>
-                                <option value="16-9-width">16:9 → Scale to Width</option>
-                                <option value="16-9-height">16:9 → Scale to Height</option>
-                            </select>
-                        </div>
                         <div class="controls">
-                            <button id="playBtn" class="btn">Send to Kraken</button>
+                            <button id="playBtn" class="btn">Play Video</button>
                             <button id="clearBtn" class="btn">Clear Video</button>
                         </div>
                         <div id="status" style="text-align: center; margin-top: 20px; color: #666;"></div>
@@ -276,7 +204,7 @@
                     <div class="kraken-container">
                         <div id="videoContainer">
                             ${this.currentVideoUrl ? 
-                                `<video id="krakenVideo" class="video-player scale-${this.scaleMode}" controls autoplay loop muted>
+                                `<video id="krakenVideo" class="video-player" controls autoplay loop muted>
                                     <source src="${this.currentVideoUrl}" type="video/mp4">
                                     Your browser does not support the video tag.
                                 </video>` :
@@ -299,43 +227,18 @@
                 const fileInput = document.getElementById('videoFile');
                 const playBtn = document.getElementById('playBtn');
                 const clearBtn = document.getElementById('clearBtn');
-                const scaleMode = document.getElementById('scaleMode');
                 const status = document.getElementById('status');
-                const previewVideo = document.getElementById('previewVideo');
-                const previewPlaceholder = document.getElementById('previewPlaceholder');
-                const previewInfo = document.getElementById('previewInfo');
-
-                // Load saved scale mode
-                const savedScaleMode = localStorage.getItem('nzxt-video-scale-mode') || 'fit';
-                scaleMode.value = savedScaleMode;
-
-                // Load existing video if any
-                this.loadExistingPreview();
 
                 fileInput.addEventListener('change', (e) => {
                     const file = e.target.files[0];
                     if (file) {
                         const url = URL.createObjectURL(file);
-                        
-                        // Show preview
-                        this.showPreview(url, file);
-                        
                         status.textContent = `Selected: ${file.name}`;
                         
                         // Save to localStorage for Kraken Browser
                         localStorage.setItem('nzxt-video-url', url);
                         localStorage.setItem('nzxt-video-name', file.name);
                     }
-                });
-
-                scaleMode.addEventListener('change', (e) => {
-                    const selectedMode = e.target.value;
-                    localStorage.setItem('nzxt-video-scale-mode', selectedMode);
-                    localStorage.setItem('nzxt-video-action', 'scale-update');
-                    status.textContent = `Scale mode updated: ${selectedMode}`;
-                    
-                    // Update preview scale class
-                    this.updatePreviewScale(selectedMode);
                 });
 
                 playBtn.addEventListener('click', () => {
@@ -354,7 +257,6 @@
                     localStorage.setItem('nzxt-video-action', 'clear');
                     status.textContent = 'Video cleared from Kraken display.';
                     fileInput.value = '';
-                    this.hidePreview();
                 });
             }
 
@@ -362,7 +264,7 @@
                 if (this.isKraken) {
                     // Listen for changes from Configuration Browser
                     window.addEventListener('storage', (event) => {
-                        if (event.key === 'nzxt-video-url' || event.key === 'nzxt-video-action' || event.key === 'nzxt-video-scale-mode') {
+                        if (event.key === 'nzxt-video-url' || event.key === 'nzxt-video-action') {
                             this.handleVideoUpdate();
                         }
                     });
@@ -376,14 +278,9 @@
                 }
             }
 
-            loadSavedSettings() {
-                this.scaleMode = localStorage.getItem('nzxt-video-scale-mode') || 'fit';
-            }
-
             handleVideoUpdate() {
                 const action = localStorage.getItem('nzxt-video-action');
                 const videoUrl = localStorage.getItem('nzxt-video-url');
-                const scaleMode = localStorage.getItem('nzxt-video-scale-mode') || 'fit';
 
                 if (action === 'clear') {
                     this.currentVideoUrl = null;
@@ -393,79 +290,10 @@
                     localStorage.removeItem('nzxt-video-action');
                 }
 
-                // Update scale mode
-                this.scaleMode = scaleMode;
-
                 this.setupUI(); // Refresh Kraken display
             }
 
             // Monitoring display đã được loại bỏ - chỉ cần video thuần túy
-
-            // Preview management functions
-            showPreview(url, file) {
-                const previewVideo = document.getElementById('previewVideo');
-                const previewPlaceholder = document.getElementById('previewPlaceholder');
-                const previewInfo = document.getElementById('previewInfo');
-                
-                if (previewVideo && previewPlaceholder && previewInfo) {
-                    previewVideo.src = url;
-                    previewVideo.style.display = 'block';
-                    previewPlaceholder.style.display = 'none';
-                    
-                    // Update scale class
-                    const scaleMode = localStorage.getItem('nzxt-video-scale-mode') || 'fit';
-                    this.updatePreviewScale(scaleMode);
-                    
-                    // Show file info
-                    const fileSize = (file.size / (1024 * 1024)).toFixed(2);
-                    previewInfo.textContent = `${file.name} (${fileSize} MB)`;
-                    
-                    // Get video dimensions when loaded
-                    previewVideo.addEventListener('loadedmetadata', () => {
-                        const width = previewVideo.videoWidth;
-                        const height = previewVideo.videoHeight;
-                        const aspectRatio = (width / height).toFixed(2);
-                        previewInfo.textContent = `${file.name} (${fileSize} MB) - ${width}x${height} (${aspectRatio}:1)`;
-                    });
-                }
-            }
-
-            hidePreview() {
-                const previewVideo = document.getElementById('previewVideo');
-                const previewPlaceholder = document.getElementById('previewPlaceholder');
-                const previewInfo = document.getElementById('previewInfo');
-                
-                if (previewVideo && previewPlaceholder && previewInfo) {
-                    previewVideo.style.display = 'none';
-                    previewVideo.src = '';
-                    previewPlaceholder.style.display = 'flex';
-                    previewInfo.textContent = '';
-                }
-            }
-
-            updatePreviewScale(scaleMode) {
-                const previewVideo = document.getElementById('previewVideo');
-                if (previewVideo) {
-                    // Remove existing scale classes
-                    previewVideo.className = 'preview-video';
-                    // Add new scale class
-                    previewVideo.classList.add(`scale-${scaleMode}`);
-                }
-            }
-
-            loadExistingPreview() {
-                const existingUrl = localStorage.getItem('nzxt-video-url');
-                const existingName = localStorage.getItem('nzxt-video-name');
-                
-                if (existingUrl && existingName) {
-                    // Create a fake file object for display
-                    const fakeFile = { 
-                        name: existingName, 
-                        size: 0 // We don't know the size
-                    };
-                    this.showPreview(existingUrl, fakeFile);
-                }
-            }
         }
 
         // Initialize the application
